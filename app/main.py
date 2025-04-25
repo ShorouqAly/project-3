@@ -1,10 +1,20 @@
 import os
+import uuid
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from app.video_editor import create_summary_video
-import uuid
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow all origins (for testing, can be restricted later)
+    allow_credentials=True,
+    allow_methods=["*"],  # allow all methods like GET, POST, etc.
+    allow_headers=["*"],  # allow all headers
+)
 
 @app.post("/create-video/")
 async def create_video(
@@ -19,24 +29,27 @@ async def create_video(
     photo_paths = []
     music_path = None
 
+    # Save uploaded video files
     for vid in videos:
         path = f"temp/{session_id}/{vid.filename}"
         with open(path, "wb") as f:
             f.write(await vid.read())
         video_paths.append(path)
 
+    # Save uploaded photo files
     for photo in photos:
         path = f"temp/{session_id}/{photo.filename}"
         with open(path, "wb") as f:
             f.write(await photo.read())
         photo_paths.append(path)
 
+    # Save uploaded music file
     if music:
         music_path = f"temp/{session_id}/{music.filename}"
         with open(music_path, "wb") as f:
             f.write(await music.read())
 
-    # Ensure the app/static directory exists before saving the output
+    # Ensure the app/static directory exists before saving the output video
     output_dir = "app/static"
     os.makedirs(output_dir, exist_ok=True)
 

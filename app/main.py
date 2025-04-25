@@ -15,10 +15,10 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,        # or ["*"] to allow all origins (less secure)
+    allow_origins=origins,        # List of allowed origins (Vercel frontend)
     allow_credentials=True,
-    allow_methods=["*"],          # GET, POST, PUT, DELETE, etc.
-    allow_headers=["*"],          # Authorization, Content-Type, etc.
+    allow_methods=["*"],          # Allow all HTTP methods
+    allow_headers=["*"],          # Allow all headers
 )
 # ──────────────────────────────────────────────────────────────────────────────
 

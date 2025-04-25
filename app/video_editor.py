@@ -1,7 +1,4 @@
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.video.compositing.concatenate import concatenate_videoclips
-from moviepy.video.VideoClip import ImageClip
-from moviepy.audio.io.AudioFileClip import AudioFileClip
+from moviepy.editor import VideoFileClip, concatenate_videoclips, ImageClip, AudioFileClip
 
 def create_summary_video(video_paths, photo_paths, output_path, music_path=None, target_duration=300):
     clips = []

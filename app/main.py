@@ -15,7 +15,7 @@ def create_summary_video(video_paths, photo_paths, output_path, music_path=None)
         raise ValueError("No valid video clips to process.")
 
     final_clip = concatenate_videoclips(clips)
-    
+
     if music_path:
         try:
             final_clip = final_clip.set_audio(AudioFileClip(music_path))

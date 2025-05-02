@@ -1,23 +1,36 @@
-from fastapi import FastAPI, File, UploadFile
-from typing import List
+import os
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from moviepy.editor import VideoFileClip, AudioFileClip
 from moviepy.video.compositing.concatenate import concatenate_videoclips
-import os
 import shutil
+from uuid import uuid4
+import tempfile
+import logging
 
 app = FastAPI()
 
-# Utility function to create summary video
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Path for temp files
+VIDEO_TEMP_DIR = "temp_videos"
+PHOTO_TEMP_DIR = "temp_photos"
+
+# Ensure temporary directories exist
+os.makedirs(VIDEO_TEMP_DIR, exist_ok=True)
+os.makedirs(PHOTO_TEMP_DIR, exist_ok=True)
+
 def create_summary_video(video_paths, photo_paths, output_path, music_path=None):
     clips = []
 
     for path in video_paths:
         try:
-            print(f"Trying to load video: {path}")
+            logger.info(f"Trying to load video: {path}")
             clip = VideoFileClip(path)
             clips.append(clip)
         except Exception as e:
-            print(f"Skipping video {path}: {e}")
+            logger.error(f"Skipping video {path}: {e}")
 
     if not clips:
         raise ValueError("No valid video clips to process.")
@@ -28,62 +41,66 @@ def create_summary_video(video_paths, photo_paths, output_path, music_path=None)
         try:
             final_clip = final_clip.set_audio(AudioFileClip(music_path))
         except Exception as e:
-            print(f"Could not set background music: {e}")
+            logger.error(f"Could not set background music: {e}")
 
     final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
 
-# Endpoint for uploading videos and creating summary video
 @app.post("/create-video/")
-async def create_video(
-    videos: List[UploadFile] = File(...),
-    photos: List[UploadFile] = File(...),
-    music: UploadFile = File(None)
-):
-    # Create temporary directories to store files
-    video_dir = "temp_videos"
-    photo_dir = "temp_photos"
-    os.makedirs(video_dir, exist_ok=True)
-    os.makedirs(photo_dir, exist_ok=True)
-
+async def create_video(videos: list[UploadFile] = File(...), photos: list[UploadFile] = File(...), music: UploadFile = File(...)):
+    # Temp files for videos, photos, and music
     video_paths = []
     photo_paths = []
-    
+    temp_video_paths = []
+    temp_photo_paths = []
+    temp_music_path = None
+
+    # Save video files to temp directory
     try:
-        # Save videos
         for video in videos:
-            video_path = os.path.join(video_dir, video.filename)
-            with open(video_path, "wb") as f:
+            video_temp_path = os.path.join(VIDEO_TEMP_DIR, f"{uuid4()}.mp4")
+            temp_video_paths.append(video_temp_path)
+            with open(video_temp_path, "wb") as f:
                 shutil.copyfileobj(video.file, f)
-            video_paths.append(video_path)
-
-        # Save photos
-        for photo in photos:
-            photo_path = os.path.join(photo_dir, photo.filename)
-            with open(photo_path, "wb") as f:
-                shutil.copyfileobj(photo.file, f)
-            photo_paths.append(photo_path)
-
-        # Music file (optional)
-        music_path = None
-        if music:
-            music_path = os.path.join("temp_music", music.filename)
-            os.makedirs("temp_music", exist_ok=True)
-            with open(music_path, "wb") as f:
-                shutil.copyfileobj(music.file, f)
-
-        # Output video path
-        output_path = "output_video.mp4"
-
-        # Create summary video
-        create_summary_video(video_paths, photo_paths, output_path, music_path)
-
-        # Clean up temporary files
-        shutil.rmtree(video_dir)
-        shutil.rmtree(photo_dir)
-        if music_path:
-            shutil.rmtree("temp_music")
-
-        return {"message": "Video created successfully", "output_path": output_path}
-    
+            video_paths.append(video_temp_path)
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"Error saving video files: {e}")
+        raise HTTPException(status_code=400, detail="Error saving video files.")
+
+    # Save photo files to temp directory
+    try:
+        for photo in photos:
+            photo_temp_path = os.path.join(PHOTO_TEMP_DIR, f"{uuid4()}.jpg")
+            temp_photo_paths.append(photo_temp_path)
+            with open(photo_temp_path, "wb") as f:
+                shutil.copyfileobj(photo.file, f)
+            photo_paths.append(photo_temp_path)
+    except Exception as e:
+        logger.error(f"Error saving photo files: {e}")
+        raise HTTPException(status_code=400, detail="Error saving photo files.")
+
+    # Save music file to temp directory
+    try:
+        music_temp_path = os.path.join(PHOTO_TEMP_DIR, f"{uuid4()}.mp3")
+        temp_music_path = music_temp_path
+        with open(music_temp_path, "wb") as f:
+            shutil.copyfileobj(music.file, f)
+    except Exception as e:
+        logger.error(f"Error saving music file: {e}")
+        raise HTTPException(status_code=400, detail="Error saving music file.")
+
+    # Create the summary video
+    output_path = os.path.join("output_videos", f"{uuid4()}.mp4")
+    try:
+        create_summary_video(video_paths, photo_paths, output_path, temp_music_path)
+    except ValueError as e:
+        logger.error(f"Error creating summary video: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Clean up temporary files
+    for temp_video in temp_video_paths:
+        os.remove(temp_video)
+    for temp_photo in temp_photo_paths:
+        os.remove(temp_photo)
+    os.remove(temp_music_path)
+
+    return {"message": "Video created successfully", "output_video": output_path}

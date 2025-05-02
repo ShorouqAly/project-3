@@ -1,7 +1,7 @@
-from moviepy.editor import VideoFileClip
-from moviepy.video.compositing.concatenate import concatenate_videoclips
-
 def create_summary_video(video_paths, photo_paths, output_path, music_path=None):
+    from moviepy.editor import VideoFileClip, AudioFileClip
+    from moviepy.video.compositing.concatenate import concatenate_videoclips
+
     clips = []
 
     for path in video_paths:
@@ -10,8 +10,6 @@ def create_summary_video(video_paths, photo_paths, output_path, music_path=None)
             clips.append(clip)
         except Exception as e:
             print(f"Skipping video {path}: {e}")
-
-    # Add logic to process photo_paths if needed
 
     if not clips:
         raise ValueError("No valid video clips to process.")
